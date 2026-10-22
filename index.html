@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <link rel="manifest" href="manifest.json" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Weight Tracker</title>
+  <meta name="theme-color" content="#121212" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #121212;
+      color: #e0e0e0;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 20px;
+    }
+    .container {
+      max-width: 600px;
+      width: 100%;
+      background: #1e1e1e;
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+      animation: fadeIn 0.8s ease;
+    }
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    .input-section {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    label {
+      font-weight: bold;
+      margin-bottom: 4px;
+      color: #bbb;
+    }
+    input {
+      padding: 12px;
+      border: 1px solid #444;
+      border-radius: 8px;
+      font-size: 16px;
+      background: #2c2c2c;
+      color: #fff;
+    }
+    .icon-btn {
+      font-size: 28px;
+      border: none;
+      background: none;
+      color: #ccc;
+      cursor: pointer;
+      transition: transform 0.2s ease;
+    }
+    .icon-btn:hover {
+      transform: scale(1.2);
+      color: #1a73e8;
+    }
+    .controls {
+      display: flex;
+      justify-content: space-around;
+      margin: 20px 0;
+    }
+    .averages {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 20px;
+      color: #ccc;
+      font-size: 16px;
+    }
+    .file-input {
+      display: none;
+    }
+    canvas {
+      width: 100% !important;
+      max-height: 300px;
+    }
+    @media (max-width: 600px) {
+      .container {
+        padding: 16px;
+      }
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <div class="container">
+    <div class="input-section">
+      <div>
+        <label for="weightInput">Weight (kg)</label>
+        <input type="number" id="weightInput" step="0.1" placeholder="Enter your weight" />
+      </div>
+      <div>
+        <label for="dateInput">Date</label>
+        <input type="date" id="dateInput" />
+      </div>
+      <button class="icon-btn" id="addWeightBtn" title="Add"><i class="fas fa-plus-circle"></i></button>
+    </div>
+
+    <div class="controls">
+      <label for="importFileInput" class="icon-btn" title="Import CSV"><i class="fas fa-file-import"></i></label>
+      <input type="file" id="importFileInput" class="file-input" accept=".csv" />
+      <button class="icon-btn" id="exportCsvBtn" title="Export CSV"><i class="fas fa-file-export"></i></button>
+      <button class="icon-btn" id="resetAppBtn" title="Reset App"><i class="fas fa-rotate-left"></i></button>
+    </div>
+
+    <div class="averages" id="averageDisplay"></div>
+    <canvas id="weightChart"></canvas>
+  </div>
+
+  <script>
+    let weightData = JSON.parse(localStorage.getItem('weightData') || '[]');
+    let chart;
+
+    function saveData() {
+      localStorage.setItem('weightData', JSON.stringify(weightData));
+    }
+
+    function calcAverage(daysBack, specificStart = null, specificEnd = null) {
+  let start, end;
+
+  if (specificStart && specificEnd) {
+    // Use specific calendar range
+    start = specificStart;
+    end = specificEnd;
+  } else {
+    // Use rolling days (original logic)
+    start = new Date();
+    start.setDate(start.getDate() - daysBack);
+    end = new Date();
+  }
+
+  const filtered = weightData.filter(entry => {
+    const entryDate = new Date(entry.date);
+    return entryDate >= start && entryDate <= end;
+  });
+
+  if (!filtered.length) return '-';
+  const avg = filtered.reduce((sum, e) => sum + e.weight, 0) / filtered.length;
+  return '∅ ' + avg.toFixed(1) + ' kg';
+}
+
+function updateAverages() {
+  const avgDisplay = document.getElementById('averageDisplay');
+  const currentYear = new Date().getFullYear();
+
+  // Define the calendar years
+  const lastYearStart = new Date(currentYear - 1, 0, 1); // Jan 1st last year
+  const lastYearEnd = new Date(currentYear - 1, 11, 31, 23, 59, 59); // Dec 31st last year
+  
+  const yearBeforeStart = new Date(currentYear - 2, 0, 1); // Jan 1st two years ago
+  const yearBeforeEnd = new Date(currentYear - 2, 11, 31, 23, 59, 59);
+
+  avgDisplay.innerHTML = [
+    `Last 4 weeks: ${calcAverage(28)}`,
+    `Last 3 months: ${calcAverage(90)}`,
+    `Last 6 months: ${calcAverage(180)}`,
+    `Last 365 days: ${calcAverage(365)}`,
+    `Entire ${currentYear - 1}: ${calcAverage(null, lastYearStart, lastYearEnd)}`,
+    `Entire ${currentYear - 2}: ${calcAverage(null, yearBeforeStart, yearBeforeEnd)}`
+  ].map(line => `<div>${line}</div>`).join('');
+}
+
+    function updateChart() {
+      const ctx = document.getElementById('weightChart').getContext('2d');
+      if (chart) chart.destroy();
+      if (!weightData.length) return;
+      chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: weightData.map(e => e.date),
+          datasets: [{
+            label: 'Weight (kg)',
+            data: weightData.map(e => e.weight),
+            borderColor: '#1a73e8',
+            backgroundColor: 'rgba(26, 115, 232, 0.1)',
+            fill: true,
+            tension: 0.3
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: {
+              title: { display: true, text: 'Date', color: '#ccc' },
+              ticks: { color: '#ccc' },
+              grid: { color: '#333' }
+            },
+            y: {
+              title: { display: true, text: 'Weight (kg)', color: '#ccc' },
+              ticks: { color: '#ccc' },
+              grid: { color: '#333' }
+            }
+          }
+        }
+      });
+    }
+
+    function addWeight() {
+      const weight = parseFloat(document.getElementById('weightInput').value);
+      const date = document.getElementById('dateInput').value;
+      if (isNaN(weight) || !date) return alert('Please enter valid weight and date');
+      const existing = weightData.findIndex(e => e.date === date);
+      if (existing >= 0) weightData[existing].weight = weight;
+      else weightData.push({ date, weight });
+      weightData.sort((a, b) => new Date(a.date) - new Date(b.date));
+      saveData();
+      updateAverages();
+      updateChart();
+      document.getElementById('weightInput').value = '';
+    }
+
+    function exportCSV() {
+      if (!weightData.length) return alert('No data to export.');
+      const csv = ["Date,Weight", ...weightData.map(e => `${e.date},${e.weight}`)].join("\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "weight_data.csv";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(link.href);
+    }
+
+    function resetApp() {
+      if (confirm('Delete all data?')) {
+        weightData = [];
+        saveData();
+        updateAverages();
+        updateChart();
+      }
+    }
+
+    function importCSV(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        const lines = e.target.result.split(/\r?\n/);
+        const newData = [];
+        for (let i = 1; i < lines.length; i++) {
+          const [date, weight] = lines[i].split(',');
+          if (date && !isNaN(parseFloat(weight))) newData.push({ date, weight: parseFloat(weight) });
+        }
+        weightData = [...weightData, ...newData];
+        weightData = weightData.reduce((acc, curr) => {
+          const found = acc.find(i => i.date === curr.date);
+          if (found) found.weight = curr.weight;
+          else acc.push(curr);
+          return acc;
+        }, []);
+        weightData.sort((a, b) => new Date(a.date) - new Date(b.date));
+        saveData();
+        updateAverages();
+        updateChart();
+      };
+      reader.readAsText(file);
+      event.target.value = '';
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('dateInput').value = new Date().toISOString().split('T')[0];
+      document.getElementById('addWeightBtn').addEventListener('click', addWeight);
+      document.getElementById('exportCsvBtn').addEventListener('click', exportCSV);
+      document.getElementById('resetAppBtn').addEventListener('click', resetApp);
+      document.getElementById('importFileInput').addEventListener('change', importCSV);
+      updateAverages();
+      updateChart();
+    });
+  </script>
+  <script>
+    // ... existing script content ...
+
+    // Register Service Worker
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js')
+          .then(registration => {
+            console.log('Service Worker registered:', registration);
+          })
+          .catch(error => {
+            console.error('Service Worker registration failed:', error);
+          });
+      });
+    }
+</script>
+</body>
+</html>
