@@ -1,10 +1,11 @@
-const CACHE_NAME = 'weight-tracker-v2';
+const CACHE_NAME = 'weight-tracker-v3';
 const urlsToCache = [
   './',
   './index.html',
   './manifest.json',
   './images/icon-192x192.png',
   './images/icon-512x512.png',
+  './images/apple-touch-icon.png',
   'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js'
 ];
 
