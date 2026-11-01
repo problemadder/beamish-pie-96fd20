@@ -1,49 +1,46 @@
-const CACHE_NAME = 'weight-tracker-v1';
+const CACHE_NAME = 'weight-tracker-v2';
 const urlsToCache = [
   './',
   './index.html',
   './manifest.json',
   './images/icon-192x192.png',
   './images/icon-512x512.png',
-  './images/icon-512x512.maskable.png',
-  'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css',
-  'https://cdn.jsdelivr.net/npm/chart.js'
+  'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js'
 ];
 
 self.addEventListener('install', (event) => {
+  self.skipWaiting();
   event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then((cache) => {
-        console.log('Opened cache');
-        return cache.addAll(urlsToCache);
-      })
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(urlsToCache))
   );
 });
 
 self.addEventListener('fetch', (event) => {
-  event.respondWith(
-    caches.match(event.request)
-      .then((response) => {
-        // Cache hit - return response
-        if (response) {
+  // Page: network first so updates show up, cache when offline
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
           return response;
-        }
-        return fetch(event.request);
-      })
+        })
+        .catch(() => caches.match(event.request).then((r) => r || caches.match('./index.html')))
+    );
+    return;
+  }
+  // Everything else: cache first
+  event.respondWith(
+    caches.match(event.request).then((response) => response || fetch(event.request))
   );
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames.map((cacheName) => {
-          if (cacheName !== CACHE_NAME) {
-            console.log('Deleting old cache:', cacheName);
-            return caches.delete(cacheName);
-          }
-        })
-      );
-    })
+    caches.keys()
+      .then((cacheNames) => Promise.all(
+        cacheNames.filter((name) => name !== CACHE_NAME).map((name) => caches.delete(name))
+      ))
+      .then(() => self.clients.claim())
   );
 });
