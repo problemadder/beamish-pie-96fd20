@@ -81,7 +81,8 @@
 
     /* entry */
     .entry {
-      display: flex;
+      display: grid;
+      grid-template-columns: 1fr auto;
       gap: 8px;
     }
     input {
@@ -100,18 +101,19 @@
       border-color: var(--accent);
     }
     #weightInput {
-      flex: 0.8 1 0;
+      grid-column: 1 / -1;
+      padding: 14px 16px;
+      font-size: 26px;
+      font-weight: 600;
       font-variant-numeric: tabular-nums;
     }
     #dateInput {
-      flex: 1.4 1 0;
-      padding: 12px 10px;
+      width: 100%;
     }
     .primary {
-      flex: 0 0 auto;
       border: none;
       border-radius: 10px;
-      padding: 0 18px;
+      padding: 0 22px;
       font: inherit;
       font-size: 16px;
       font-weight: 600;
