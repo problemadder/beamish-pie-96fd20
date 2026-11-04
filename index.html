@@ -192,6 +192,48 @@
       font-size: 14px;
     }
 
+    /* recent entries */
+    .recent-row {
+      display: flex;
+      align-items: center;
+      border-top: 1px solid var(--line);
+    }
+    .recent-row:first-child {
+      border-top: none;
+    }
+    .recent-row .edit {
+      flex: 1;
+      display: flex;
+      justify-content: space-between;
+      border: none;
+      background: none;
+      color: var(--text);
+      font: inherit;
+      font-size: 15px;
+      padding: 11px 4px;
+      text-align: left;
+      cursor: pointer;
+    }
+    .recent-row .edit span:first-child {
+      color: var(--muted);
+    }
+    .recent-row .edit span:last-child {
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
+    .recent-row .del {
+      border: none;
+      background: none;
+      color: var(--muted);
+      font-size: 20px;
+      line-height: 1;
+      padding: 8px 4px 8px 16px;
+      cursor: pointer;
+    }
+    .recent-row.selected .edit span {
+      color: var(--accent);
+    }
+
     /* averages */
     .section-title {
       font-size: 13px;
@@ -270,6 +312,11 @@
         <canvas id="weightChart"></canvas>
         <div class="empty" id="emptyState">No entries yet</div>
       </div>
+    </div>
+
+    <div class="card" id="recentCard">
+      <div class="section-title">Recent · tap to edit</div>
+      <div id="recentList"></div>
     </div>
 
     <div class="card">
@@ -510,10 +557,50 @@
       });
     }
 
+    // if the chosen date already has an entry, show it and switch to "Update"
+    function syncEntryForm() {
+      const date = document.getElementById('dateInput').value;
+      const found = weightData.find(e => e.date === date);
+      document.getElementById('weightInput').value = found ? String(found.weight) : '';
+      document.getElementById('addWeightBtn').textContent = found ? 'Update' : 'Add';
+      updateRecent();
+    }
+
+    function updateRecent() {
+      const list = document.getElementById('recentList');
+      const selected = document.getElementById('dateInput').value;
+      document.getElementById('recentCard').style.display = weightData.length ? '' : 'none';
+      list.innerHTML = weightData.slice(-5).reverse().map(e => `
+        <div class="recent-row${e.date === selected ? ' selected' : ''}">
+          <button class="edit" data-date="${e.date}">
+            <span>${fmtDate(toTime(e.date), true)}</span><span>${e.weight.toFixed(1)} kg</span>
+          </button>
+          <button class="del" data-date="${e.date}" aria-label="Delete">×</button>
+        </div>`).join('');
+    }
+
+    function editEntry(date) {
+      document.getElementById('dateInput').value = date;
+      syncEntryForm();
+      const input = document.getElementById('weightInput');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      input.focus();
+      input.select();
+    }
+
+    function deleteEntry(date) {
+      const entry = weightData.find(e => e.date === date);
+      if (!entry || !confirm(`Delete ${entry.weight.toFixed(1)} kg on ${fmtDate(toTime(date), true)}?`)) return;
+      weightData = weightData.filter(e => e.date !== date);
+      saveData();
+      refresh();
+    }
+
     function refresh() {
       updateSummary();
       updateAverages();
       updateChart();
+      syncEntryForm();
     }
 
     function addWeight() {
@@ -526,7 +613,6 @@
       weightData.sort((a, b) => toTime(a.date) - toTime(b.date));
       saveData();
       refresh();
-      document.getElementById('weightInput').value = '';
       document.getElementById('weightInput').blur();
     }
 
@@ -560,7 +646,7 @@
         const newData = [];
         for (let i = 1; i < lines.length; i++) {
           const [date, weight] = lines[i].split(',');
-          if (date && !isNaN(parseFloat(weight))) newData.push({ date: date.trim(), weight: parseFloat(weight) });
+          if (/^\d{4}-\d{2}-\d{2}$/.test((date || '').trim()) && !isNaN(parseFloat(weight))) newData.push({ date: date.trim(), weight: parseFloat(weight) });
         }
         weightData = [...weightData, ...newData];
         weightData = weightData.reduce((acc, curr) => {
@@ -589,6 +675,15 @@
       });
       document.getElementById('weightInput').addEventListener('keydown', e => {
         if (e.key === 'Enter') addWeight();
+      });
+      // select the existing value so typing replaces it
+      document.getElementById('weightInput').addEventListener('focus', e => e.target.select());
+      document.getElementById('dateInput').addEventListener('change', syncEntryForm);
+      document.getElementById('recentList').addEventListener('click', e => {
+        const btn = e.target.closest('button');
+        if (!btn) return;
+        if (btn.classList.contains('del')) deleteEntry(btn.dataset.date);
+        else editEntry(btn.dataset.date);
       });
       document.getElementById('exportCsvBtn').addEventListener('click', exportCSV);
       document.getElementById('resetAppBtn').addEventListener('click', resetApp);
