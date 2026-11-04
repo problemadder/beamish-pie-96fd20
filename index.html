@@ -251,7 +251,7 @@
     </div>
 
     <div class="card entry">
-      <input type="number" id="weightInput" step="0.1" inputmode="decimal" placeholder="kg" aria-label="Weight in kg" />
+      <input type="text" id="weightInput" inputmode="decimal" autocomplete="off" enterkeyhint="done" placeholder="kg" aria-label="Weight in kg" />
       <input type="date" id="dateInput" aria-label="Date" />
       <button class="primary" id="addWeightBtn">Add</button>
     </div>
@@ -580,6 +580,13 @@
     document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('dateInput').value = todayString();
       document.getElementById('addWeightBtn').addEventListener('click', addWeight);
+      // digits plus one decimal separator (comma or dot)
+      document.getElementById('weightInput').addEventListener('input', e => {
+        let v = e.target.value.replace(/[^0-9.,]/g, '');
+        const i = v.search(/[.,]/);
+        if (i >= 0) v = v.slice(0, i + 1) + v.slice(i + 1).replace(/[.,]/g, '');
+        e.target.value = v;
+      });
       document.getElementById('weightInput').addEventListener('keydown', e => {
         if (e.key === 'Enter') addWeight();
       });
